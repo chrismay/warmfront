@@ -3,7 +3,7 @@ require 'uri'
 require 'resolv'
 require 'net/http'
 
-#
+# This bit will be extracted out into a config file
 dns=["137.205.205.80","8.8.8.8","8.8.4.4"]
 cloudfront_urls=[
   URI("http://d36jn9qou1tztq.cloudfront.net/static_war/render/css/packed/pack5.css.373145863781"),
