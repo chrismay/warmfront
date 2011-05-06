@@ -10,15 +10,17 @@ cloudfront_urls=[
   URI("http://dwfwn5ehtp58w.cloudfront.net/static_war/render/css/packed/noaccessibility.css.426842630073")
 ]
 
+# cache DNS lookups so we don't have to hammer the DNS, or tie ourselves in knots trying to lookup only once per host
 class Dns
   def initialize
-     @dns_cache=Hash.new{|hash,key| hash[key]=Hash.new}
+     @dns_cache=Hash.new{|hash,key| hash[key]=Hash.new{|h,k|h[k]=[]}}
   end
+
+  # must be a more concise way to do this
   def resolve(nameserver,host)
     cached_entry= @dns_cache[nameserver][host] 
     if (cached_entry.empty?) then
       cached_entry = Resolv::DNS.open({:nameserver=>nameserver}){|r| r.getaddresses(host).collect{|ip| ip.to_s}}
-      puts "looked up #{host} at #{nameserver}"
       @dns_cache[nameserver][host] = cached_entry
     end
     cached_entry
@@ -27,26 +29,13 @@ end
 
 dns=Dns.new
 
-# get the unique list of hostnames. 
-#
-hostnames = cloudfront_urls.collect{ |url| url.host}.uniq
-
-# Make a list of lists of hostname=>IP
-hosts_to_ips = hostnames.collect{ |host|
-  [host,dns_servers.collect{|server| dns.resolve(server,host) }.flatten ]
+url_to_ips = cloudfront_urls.collect{|url|
+  [url,dns_servers.collect{|server| dns.resolve(server,url.host)}.flatten]
 }
 
-#Make the cross-product of IPs and URLs
-ips_to_urls = cloudfront_urls.collect { |url|
-  (host,ips) = hosts_to_ips.find{|(host,ips)| host == url.host }
-  ips.collect{ |ip| [ip,url]}
-}.flatten(1)
+results = url_to_ips.collect{|(url,ips)| ips.collect{|ip|
+  [url.to_s,ip,Net::HTTP::start(ip,80){ |http| http.get(url.path,{"Host"=>url.host}).code}]
+}}.flatten(1)
+# need the flatten because I can't find a way to do flatmap / collect_concat in ruby 1.8
 
-## Fetch all the URLs for all of the IPs. 
-##
-results= ips_to_urls.collect{|(ip,url)|
-    [url, Net::HTTP::start(ip,80){ |http| http.get(url.path,{"Host"=>url.host}).code} ]
-}
-
-p results
-
+results.each{|url, ip, response| puts "#{url} returned #{response} from #{ip}"}
