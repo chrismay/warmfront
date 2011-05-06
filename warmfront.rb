@@ -13,17 +13,11 @@ cloudfront_urls=[
 # cache DNS lookups so we don't have to hammer the DNS, or tie ourselves in knots trying to lookup only once per host
 class Dns
   def initialize
-     @dns_cache=Hash.new{|hash,key| hash[key]=Hash.new{|h,k|h[k]=[]}}
+     @dns_cache=Hash.new{|hash,key| hash[key]=Hash.new}
   end
 
-  # must be a more concise way to do this
   def resolve(nameserver,host)
-    cached_entry= @dns_cache[nameserver][host] 
-    if (cached_entry.empty?) then
-      cached_entry = Resolv::DNS.open({:nameserver=>nameserver}){|r| r.getaddresses(host).collect{|ip| ip.to_s}}
-      @dns_cache[nameserver][host] = cached_entry
-    end
-    cached_entry
+    @dns_cache[nameserver][host] ||= Resolv::DNS.open({:nameserver=>nameserver}){|r| r.getaddresses(host).collect{|ip| ip.to_s}}
   end
 end
 
