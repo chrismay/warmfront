@@ -8,7 +8,8 @@ require 'yaml'
 config=YAML.load(File.open("config.yaml"))
 
 cloudfront_urls=config[:urls].collect{|u| URI(u)}
-
+# cachebusting suffix
+suffix=ARGV[0]
 
 # cache DNS lookups so we don't have to hammer the DNS, or tie ourselves in knots trying to lookup only once per host
 class Dns
@@ -28,7 +29,9 @@ url_to_ips = cloudfront_urls.collect{|url|
 }
 
 results = url_to_ips.collect{|(url,ips)| ips.collect{|ip|
-  [url.to_s,ip,Net::HTTP::start(ip,80){ |http| http.get(url.path,{"Host"=>url.host}).code}]
+  [url.to_s,ip,Net::HTTP::start(ip,80){ |http| 
+    print '.'
+    http.get("#{url.path}.{suffix}",{"Host"=>url.host}).code}]
 }}.flatten(1)
 # need the flatten because I can't find a way to do flatmap / collect_concat in ruby 1.8
 
